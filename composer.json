@@ -1,0 +1,19 @@
+{
+	"name": "zax/clara",
+	"description": "An OOP MVC PHP7 framework.",
+	"type": "framework",
+	"authors": [
+		{
+			"name": "zaxwebs",
+			"email": "zifidigital@gmail.com"
+		}
+	],
+	"require": {
+		"kint-php/kint": "^3.3"
+	},
+	"autoload": {
+		"psr-4": {
+			"Clara\\": "src/"
+		}
+	}
+}
