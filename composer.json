@@ -9,7 +9,8 @@
 		}
 	],
 	"require": {
-		"kint-php/kint": "^3.3"
+		"kint-php/kint": "^3.3",
+		"php-di/php-di": "^6.0"
 	},
 	"autoload": {
 		"psr-4": {
