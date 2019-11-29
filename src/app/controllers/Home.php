@@ -2,10 +2,12 @@
 
 namespace Clara\app\controllers;
 
-class Home
+use Clara\core\Controller;
+
+class Home extends Controller
 {
   function index()
   {
-    echo "Home@index";
+    $this->view('home.index');
   }
 }

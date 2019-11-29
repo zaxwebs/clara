@@ -67,6 +67,7 @@ class Request
     return $this->server('REQUEST_URI');
   }
 
+  // get the request path
   public function path()
   {
     return explode('?', $this->uri())[0];

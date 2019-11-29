@@ -13,5 +13,5 @@ $container = new \DI\Container();
 $router = $container->get('Clara\core\Router');
 require_once  './src/setup/routes.php';
 
-// initialize with our front controller, this (majorly) decouples the framework from the container.
+// initialize with our front controller, this (majorly) decouples the framework from the container, see Router for full decoupling.
 $container->get('Clara\core\Bootstrap');

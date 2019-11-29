@@ -2,7 +2,9 @@
 
 namespace Clara\app\controllers;
 
-class _404
+use Clara\core\Controller;
+
+class _404 extends Controller
 {
   function index()
   {
