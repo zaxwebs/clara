@@ -7,7 +7,6 @@ class Response
   protected $version = '1.1';
   protected $status = 200;
   protected $headers = [];
-  protected $content = '';
 
   public function getVersion()
   {
@@ -26,11 +25,6 @@ class Response
   public function setHeader(string $label, string $value)
   {
     $this->headers[$label] = $value;
-  }
-
-  public function addContent($content)
-  {
-    $this->content .= $content;
   }
 
   protected function sendStatus()
@@ -54,12 +48,22 @@ class Response
   {
     $this->sendStatus();
     $this->sendHeaders();
-    $this->sendContent();
   }
 
   public function redirect(string $uri)
   {
     $this->setStatus(302);
     $this->setHeader('location', $uri);
+    //send headers
+    $this->send();
+  }
+
+  public function view(string $view, array $data = [])
+  {
+    //send headers
+    $this->send();
+    //render view
+    extract($data);
+    require_once __DIR__ . '/../app/views/' . $view . '.php';
   }
 }

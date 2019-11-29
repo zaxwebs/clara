@@ -5,10 +5,12 @@ namespace Clara\core;
 abstract class Controller
 {
   protected $request;
+  protected $response;
 
   public function __construct(Request $request, Response $response)
   {
-    $this->request = $this->request;
+    $this->request = $request;
+    $this->response = $response;
   }
 
   protected function view(string $view, array $data = [])

@@ -16,7 +16,5 @@ class Bootstrap
     // look at incoming request and dispatch the right callable
     // callables modify Response header and content to be sent as a whole later
     $this->router->dispatch();
-    // send appropriate response with correct headers
-    $this->response->send();
   }
 }

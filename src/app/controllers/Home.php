@@ -10,4 +10,9 @@ class Home extends Controller
   {
     $this->view('home.index');
   }
+
+  function test()
+  {
+    $this->response->redirect('/');
+  }
 }
