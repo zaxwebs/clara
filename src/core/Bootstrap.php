@@ -10,5 +10,6 @@ class Bootstrap
   public function __construct(Router $router)
   {
     $this->router = $router;
+    $this->router->dispatch();
   }
 }
