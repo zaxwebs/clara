@@ -7,11 +7,13 @@ namespace Clara\core;
 class Router
 {
   protected $request;
+  protected $response;
   protected $routes = [];
 
-  public function __construct(Request $request, \DI\Container $container)
+  public function __construct(Request $request, Response $response, \DI\Container $container)
   {
     $this->request = $request;
+    $this->response = $response;
     $this->container = $container;
   }
 
