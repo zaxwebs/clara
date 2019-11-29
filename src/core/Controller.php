@@ -15,7 +15,6 @@ abstract class Controller
 
   protected function view(string $view, array $data = [])
   {
-    extract($data);
-    require_once __DIR__ . '/../app/views/' . $view . '.php';
+    $this->response->view($view, $data);
   }
 }

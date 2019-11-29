@@ -54,15 +54,15 @@ class Response
   {
     $this->setStatus(302);
     $this->setHeader('location', $uri);
-    //send headers
+    // send headers
     $this->send();
   }
 
   public function view(string $view, array $data = [])
   {
-    //send headers
+    // send headers
     $this->send();
-    //render view
+    // render view
     extract($data);
     require_once __DIR__ . '/../app/views/' . $view . '.php';
   }
