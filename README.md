@@ -1,6 +1,7 @@
 # 💠 Clara
 An MVC framework built with PHP 7.
-Clara utilizes Composer for autloading (PSR-4) and dependecny management as well as PHP-DI for container.
+
+Clara is built entirely from scratch except it relies on standard dependency manager - Composer & PHP-DI as a container.
 
 ## Installation
 Install a local copy with the instructions below.
