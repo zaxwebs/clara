@@ -13,6 +13,6 @@ class Home extends Controller
 
   function test()
   {
-    $this->response->redirect('/');
+    $this->response->back();
   }
 }

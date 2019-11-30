@@ -48,15 +48,6 @@ class Response
     $this->sendHeaders();
   }
 
-  // sends redirection header to redirect
-  public function redirect(string $uri)
-  {
-    $this->setStatus(302);
-    $this->setHeader('location', $uri);
-    // send headers
-    $this->send();
-  }
-
   // send headers first and render view
   public function view(string $view, array $data = [])
   {
@@ -65,5 +56,31 @@ class Response
     // render view
     extract($data);
     require_once __DIR__ . '/../app/views/' . $view . '.php';
+  }
+
+  // sends redirection header to redirect
+  public function redirect(string $uri)
+  {
+    $this->setStatus(302);
+    $this->setHeader('location', $uri);
+    // send headers
+    $this->send();
+    exit;
+  }
+
+  // redirects the user back to previous page
+  public function back()
+  {
+    if (isset($_SERVER['HTTP_REFERER'])) {
+      $this->redirect($_SERVER['HTTP_REFERER']);
+    } else {
+      $this->setStatus(302);
+      $this->setHeader('location', 'javascript://history.go(-1)');
+      // send headers
+      $this->send();
+      // you can render a view here instead as well.
+      echo 'It seems like Javascript is disabled on your browser. You can proceed to previous page manually...<br/>';
+      exit;
+    }
   }
 }

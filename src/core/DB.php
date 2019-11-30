@@ -23,11 +23,11 @@ class DB extends \PDO
   // querying db with run handles preparation and execution automatically for queries with arguments
   public function run(string $sql, array $args = [])
   {
-    // if no arguments we don't need to prepare & execute
+    // if no arguments exist we don't need to prepare & execute
     if (!$args) {
       return $this->query($sql);
     }
-    // if arguments then prepare & execute
+    // if arguments exist then prepare & execute
     $query = $this->prepare($sql);
     $query->execute($args);
     return $query;
