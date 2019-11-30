@@ -27,4 +27,24 @@ abstract class Controller
   {
     $this->response->setHeader($label, $value);
   }
+
+  protected function get(string $key, string  $default = NULL)
+  {
+    $this->request->get($key, $default);
+  }
+
+  protected function post(string $key, string  $default = NULL)
+  {
+    $this->request->post($key, $default);
+  }
+
+  protected function session(string $key, string  $default = NULL)
+  {
+    $this->request->session($key, $default);
+  }
+
+  protected function cookie(string $key, string  $default = NULL)
+  {
+    $this->request->cookie($key, $default);
+  }
 }
