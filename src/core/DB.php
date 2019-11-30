@@ -20,6 +20,7 @@ class DB extends \PDO
     parent::__construct($dsn, $user, $password, $options);
   }
 
+  // querying db with run handles preparation and execution automatically for queries with arguments
   public function run(string $sql, array $args = [])
   {
     // if no arguments we don't need to prepare & execute
