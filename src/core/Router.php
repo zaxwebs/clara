@@ -53,7 +53,6 @@ class Router
       $action = $handler[1];
     } else {
       // 404
-      $this->response->setStatus(404);
       $controller = '\\Clara\\app\\controllers\\_404';
       $action = 'index';
     }

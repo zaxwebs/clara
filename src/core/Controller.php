@@ -17,4 +17,9 @@ abstract class Controller
   {
     $this->response->view($view, $data);
   }
+
+  protected function setStatus(int $status)
+  {
+    $this->response->setStatus($status);
+  }
 }
