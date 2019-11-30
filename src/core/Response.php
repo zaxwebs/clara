@@ -12,6 +12,7 @@ class Response
   {
     return $this->version;
   }
+
   public function setVersion(string $version)
   {
     $this->version = $version;
@@ -27,6 +28,7 @@ class Response
     $this->headers[$label] = $value;
   }
 
+  //sends status header
   protected function sendStatus()
   {
     header("HTTP/{$this->version} {$this->status}", true, $this->status);
@@ -39,17 +41,14 @@ class Response
     }
   }
 
-  protected function sendContent()
-  {
-    echo $this->content;
-  }
-
+  //sends status as well as other headers
   public function send()
   {
     $this->sendStatus();
     $this->sendHeaders();
   }
 
+  //sends redirection header to redirect
   public function redirect(string $uri)
   {
     $this->setStatus(302);
@@ -58,6 +57,7 @@ class Response
     $this->send();
   }
 
+  //send headers first and render view
   public function view(string $view, array $data = [])
   {
     // send headers

@@ -22,4 +22,9 @@ abstract class Controller
   {
     $this->response->setStatus($status);
   }
+
+  protected function setHeader(string $label, string $value)
+  {
+    $this->response->setHeader($label, $value);
+  }
 }
