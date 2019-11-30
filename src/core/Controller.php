@@ -7,7 +7,7 @@ abstract class Controller
   protected $request;
   protected $response;
 
-  public function __construct(Request $request, Response $response)
+  public function __construct(Request $request, Response $response, DB $db)
   {
     $this->request = $request;
     $this->response = $response;
