@@ -24,6 +24,7 @@ Installation instructions: https://getcomposer.org/download/
 * Add controller and models in ```src/app/controllers``` and ```src/app/models``` respectively.
 
 ## Project Structure
+Clara is built on the following structural architecture:
 ```bash
 /clara
   /public                                   # Assets like images, CSS and JS files here
