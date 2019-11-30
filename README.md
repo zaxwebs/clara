@@ -1,9 +1,7 @@
 # 💠 Clara
 An MVC framework built with PHP 7.
 
-Clara is built entirely from scratch except it relies on standard dependency manager - Composer & PHP-DI as a container.
-
-**Note**: 🚧 This framework is currently under construction. 
+Clara is built entirely from scratch except it relies on standard dependency manager - Composer & PHP-DI as a container. 
 
 ## Installation
 Install a local copy with the instructions below.
@@ -33,7 +31,7 @@ Clara is built on the following structural architecture:
   /public                                   # Assets like images, CSS and JS files here
   /src                                      # Clara source code
     /app                                    # Dedicated directory for controllers and models
-      /controllers                          # Add you controllers here
+      /controllers                          # Add your controllers here
       /models                               # Add your models here
     /core                                   # Clara core classes
     /setup                                  # Dedicated directory for configuration
