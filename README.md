@@ -39,3 +39,6 @@ Clara is built on the following structural architecture:
   .htaccess                                 # Routes all traffic to index.php
   index.php                                 # Initializes app cycle
 ```
+
+## Motivation
+Clara was built with the purpose of understanding how major PHP frameworks operate under the hood. Most frameworks like Laravel implement techniques that can seem like "magic" unless you actually implement them yourself, an example being utilizing reflection API to plug in dependencies. Clara has helped me so much with familarizing myself with quite a few advanced concepts in the PHP & OOP world.
