@@ -62,13 +62,24 @@ class ReflectionBasedAutowiring implements DefinitionSource, Autowiring
                 continue;
             }
 
-            $parameterClass = $parameter->getClass();
+            $parameterClassName = $this->getParameterClassName($parameter);
 
-            if ($parameterClass) {
-                $parameters[$index] = new Reference($parameterClass->getName());
+            if ($parameterClassName !== null) {
+                $parameters[$index] = new Reference($parameterClassName);
             }
         }
 
         return $parameters;
+    }
+
+    private function getParameterClassName(\ReflectionParameter $parameter) : ?string
+    {
+        $parameterType = $parameter->getType();
+
+        if (! $parameterType instanceof \ReflectionNamedType || $parameterType->isBuiltin()) {
+            return null;
+        }
+
+        return $parameterType->getName();
     }
 }
