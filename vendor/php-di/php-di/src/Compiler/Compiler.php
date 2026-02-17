@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace DI\Compiler;
 
+use function chmod;
 use DI\Definition\ArrayDefinition;
 use DI\Definition\DecoratorDefinition;
 use DI\Definition\Definition;
@@ -17,10 +18,14 @@ use DI\Definition\StringDefinition;
 use DI\Definition\ValueDefinition;
 use DI\DependencyException;
 use DI\Proxy\ProxyFactory;
+use function dirname;
+use function file_put_contents;
 use InvalidArgumentException;
-use PhpParser\Node\Expr\Closure;
-use SuperClosure\Analyzer\AstAnalyzer;
-use SuperClosure\Exception\ClosureAnalysisException;
+use Laravel\SerializableClosure\Support\ReflectionClosure;
+use function rename;
+use function sprintf;
+use function tempnam;
+use function unlink;
 
 /**
  * Compiles the container into PHP code much more optimized for performances.
@@ -168,15 +173,41 @@ class Compiler
 
         ob_start();
         require __DIR__ . '/Template.php';
-        $fileContent = ob_get_contents();
-        ob_end_clean();
+        $fileContent = ob_get_clean();
 
         $fileContent = "<?php\n" . $fileContent;
 
         $this->createCompilationDirectory(dirname($fileName));
-        file_put_contents($fileName, $fileContent);
+        $this->writeFileAtomic($fileName, $fileContent);
 
         return $fileName;
+    }
+
+    private function writeFileAtomic(string $fileName, string $content) : int
+    {
+        $tmpFile = @tempnam(dirname($fileName), 'swap-compile');
+        if ($tmpFile === false) {
+            throw new InvalidArgumentException(
+                sprintf('Error while creating temporary file in %s', dirname($fileName))
+            );
+        }
+        @chmod($tmpFile, 0666);
+
+        $written = file_put_contents($tmpFile, $content);
+        if ($written === false) {
+            @unlink($tmpFile);
+
+            throw new InvalidArgumentException(sprintf('Error while writing to %s', $tmpFile));
+        }
+
+        @chmod($tmpFile, 0666);
+        $renamed = @rename($tmpFile, $fileName);
+        if (!$renamed) {
+            @unlink($tmpFile);
+            throw new InvalidArgumentException(sprintf('Error while renaming %s to %s', $tmpFile, $fileName));
+        }
+
+        return $written;
     }
 
     /**
@@ -213,7 +244,7 @@ class Compiler
                 $isOptional = $this->compileValue($definition->isOptional());
                 $defaultValue = $this->compileValue($definition->getDefaultValue());
                 $code = <<<PHP
-        \$value = getenv($variableName);
+        \$value = \$_ENV[$variableName] ?? \$_SERVER[$variableName] ?? getenv($variableName);
         if (false !== \$value) return \$value;
         if (!$isOptional) {
             throw new \DI\Definition\Exception\InvalidDefinition("The environment variable '{$definition->getVariableName()}' has not been defined");
@@ -327,7 +358,7 @@ PHP;
 
     private function createCompilationDirectory(string $directory)
     {
-        if (!is_dir($directory) && !@mkdir($directory, 0777, true)) {
+        if (!is_dir($directory) && !@mkdir($directory, 0777, true) && !is_dir($directory)) {
             throw new InvalidArgumentException(sprintf('Compilation directory does not exist and cannot be created: %s.', $directory));
         }
         if (!is_writable($directory)) {
@@ -365,35 +396,25 @@ PHP;
         return true;
     }
 
+    /**
+     * @throws \DI\Definition\Exception\InvalidDefinition
+     */
     private function compileClosure(\Closure $closure) : string
     {
-        $closureAnalyzer = new AstAnalyzer;
+        $reflector = new ReflectionClosure($closure);
 
-        try {
-            $closureData = $closureAnalyzer->analyze($closure);
-        } catch (ClosureAnalysisException $e) {
-            if (stripos($e->getMessage(), 'Two closures were declared on the same line') !== false) {
-                throw new InvalidDefinition('Cannot compile closures when two closures are defined on the same line', 0, $e);
-            }
-
-            throw $e;
-        }
-
-        /** @var Closure $ast */
-        $ast = $closureData['ast'];
-
-        // Force all closures to be static (add the `static` keyword), i.e. they can't use
-        // $this, which makes sense since their code is copied into another class.
-        $ast->static = true;
-
-        // Check if the closure imports variables with `use`
-        if (! empty($ast->uses)) {
+        if ($reflector->getUseVariables()) {
             throw new InvalidDefinition('Cannot compile closures which import variables using the `use` keyword');
         }
 
-        $code = (new \PhpParser\PrettyPrinter\Standard)->prettyPrint([$ast]);
+        if ($reflector->isBindingRequired() || $reflector->isScopeRequired()) {
+            throw new InvalidDefinition('Cannot compile closures which use $this or self/static/parent references');
+        }
 
-        // Trim spaces and the last `;`
+        // Force all closures to be static (add the `static` keyword), i.e. they can't use
+        // $this, which makes sense since their code is copied into another class.
+        $code = ($reflector->isStatic() ? '' : 'static ') . $reflector->getCode();
+
         $code = trim($code, "\t\n\r;");
 
         return $code;

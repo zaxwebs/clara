@@ -7,6 +7,7 @@ namespace DI\Invoker;
 use Invoker\ParameterResolver\ParameterResolver;
 use Psr\Container\ContainerInterface;
 use ReflectionFunctionAbstract;
+use ReflectionNamedType;
 
 /**
  * Inject the container, the definition or any other service using type-hints.
@@ -42,33 +43,32 @@ class FactoryParameterResolver implements ParameterResolver
         }
 
         foreach ($parameters as $index => $parameter) {
-            $parameterClassName = $this->getParameterClassName($parameter);
-
-            if ($parameterClassName === null) {
+            $parameterType = $parameter->getType();
+            if (!$parameterType) {
+                // No type
+                continue;
+            }
+            if (!$parameterType instanceof ReflectionNamedType) {
+                // Union types are not supported
+                continue;
+            }
+            if ($parameterType->isBuiltin()) {
+                // Primitive types are not supported
                 continue;
             }
 
-            if ($parameterClassName === 'Psr\Container\ContainerInterface') {
+            $parameterClass = $parameterType->getName();
+
+            if ($parameterClass === 'Psr\Container\ContainerInterface') {
                 $resolvedParameters[$index] = $this->container;
-            } elseif ($parameterClassName === 'DI\Factory\RequestedEntry') {
+            } elseif ($parameterClass === 'DI\Factory\RequestedEntry') {
                 // By convention the second parameter is the definition
                 $resolvedParameters[$index] = $providedParameters[1];
-            } elseif ($this->container->has($parameterClassName)) {
-                $resolvedParameters[$index] = $this->container->get($parameterClassName);
+            } elseif ($this->container->has($parameterClass)) {
+                $resolvedParameters[$index] = $this->container->get($parameterClass);
             }
         }
 
         return $resolvedParameters;
-    }
-
-    private function getParameterClassName(\ReflectionParameter $parameter) : ?string
-    {
-        $parameterType = $parameter->getType();
-
-        if (! $parameterType instanceof \ReflectionNamedType || $parameterType->isBuiltin()) {
-            return null;
-        }
-
-        return $parameterType->getName();
     }
 }
