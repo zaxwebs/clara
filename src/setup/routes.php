@@ -2,9 +2,11 @@
 
 declare(strict_types=1);
 
-$router->get('/', 'Home@index');
+use Clara\core\Route;
 
-$router->get('/todos', 'Todos@index');
-$router->post('/todos', 'Todos@store');
-$router->post('/todos/toggle', 'Todos@toggle');
-$router->post('/todos/delete', 'Todos@delete');
+Route::get('/', 'Home@index');
+
+Route::get('/todos', 'Todos@index');
+Route::post('/todos', 'Todos@store');
+Route::post('/todos/toggle', 'Todos@toggle');
+Route::post('/todos/delete', 'Todos@delete');
