@@ -79,33 +79,43 @@ Installation guide: https://getcomposer.org/download/
 composer install
 ```
 
+4. **Point your web server's document root to the `public/` directory** — not the project root.
+
+   In Laragon: Menu → Apache → `sites-enabled/auto.clara.test.conf` → set `DocumentRoot` to `C:/laragon/www/clara/public` and update the `<Directory>` path to match.
+
+   This prevents direct HTTP access to source code, config files, and the database.
+
 ---
 
 ## Project Structure
 
 ```
 /clara
-  .htaccess              ← Rewrites all URLs to index.php
-  index.php              ← Entry point: boots the framework
-  composer.json          ← Dependency declarations and PSR‑4 autoload map
-  /ephermal              ← Runtime data (e.g. SQLite database, not committed)
+  composer.json            ← Dependency declarations and PSR‑4 autoload map
+  /public                  ← Web server document root
+    .htaccess              ← Rewrites all URLs to index.php
+    index.php              ← Entry point: boots the framework
+    favicon.ico
+  /ephermal                ← Runtime data (e.g. SQLite database, not committed)
   /src
     /setup
-      config.php         ← App name and database config (DB_CONFIG)
-      routes.php         ← All route definitions
+      config.php           ← App name and database config (DB_CONFIG)
+      routes.php           ← All route definitions
     /core
-      Bootstrap.php      ← Kicks off routing
-      Router.php         ← Matches URLs to controller actions
-      Request.php        ← Reads incoming HTTP data
-      Response.php       ← Sends HTTP responses and renders views
-      Controller.php     ← Base class all controllers extend
-      DB.php             ← PDO database wrapper
+      Bootstrap.php        ← Kicks off routing
+      Router.php           ← Matches URLs to controller actions
+      Request.php          ← Reads incoming HTTP data
+      Response.php         ← Sends HTTP responses and renders views
+      Controller.php       ← Base class all controllers extend
+      DB.php               ← PDO database wrapper
     /app
-      /controllers       ← Your controllers (Home, Todos, _404)
-      /models            ← Your models (Todo)
-      /views             ← PHP view templates
-  /vendor                ← Composer‑managed packages (not committed)
+      /controllers         ← Your controllers (Home, Todos, _404)
+      /models              ← Your models (Todo)
+      /views               ← PHP view templates
+  /vendor                  ← Composer‑managed packages (not committed)
 ```
+
+Only the `public/` directory is exposed to the web. Everything above it — `src/`, `ephermal/`, `composer.json` — is inaccessible via HTTP.
 
 ---
 
@@ -178,7 +188,7 @@ This means a class like `Clara\core\Router` is expected to live at `src/core/Rou
 
 This is the core of Clara. Every HTTP request follows this exact path from browser to screen. Read the files alongside this guide to see each step in the actual code.
 
-### Step 1 · URL Rewriting (`.htaccess`)
+### Step 1 · URL Rewriting (`public/.htaccess`)
 
 ```apache
 RewriteEngine On
@@ -187,31 +197,31 @@ RewriteCond %{REQUEST_FILENAME} !-f
 RewriteRule ^ index.php [QSA,L]
 ```
 
-Apache's `mod_rewrite` intercepts every incoming request. If the URL does not point to an existing file or directory on disk, it silently forwards the request to `index.php`. This is called the **front controller pattern** — one file handles all requests regardless of URL.
+The `.htaccess` file lives inside `public/`, which is the web server's document root. Apache's `mod_rewrite` intercepts every incoming request. If the URL does not point to an existing file or directory on disk within `public/`, it silently forwards the request to `public/index.php`. This is called the **front controller pattern** — one file handles all requests regardless of URL.
 
-For example, a request to `/todos` does not look for a file called `todos`. Apache sees no such file exists, so it loads `index.php` instead. The original URL (`/todos`) is preserved in the `REQUEST_URI` server variable for PHP to read later.
+Because only `public/` is exposed, requests like `/src/setup/config.php` never reach the filesystem — Apache looks inside `public/` for that path, finds nothing, and routes to `index.php` instead.
 
 ---
 
-### Step 2 · Entry Point (`index.php`)
+### Step 2 · Entry Point (`public/index.php`)
 
 ```php
-define('BASE_PATH', __DIR__);
+define('BASE_PATH', dirname(__DIR__));
 
-require_once __DIR__ . '/vendor/autoload.php';
-require_once __DIR__ . '/src/setup/config.php';
+require_once BASE_PATH . '/vendor/autoload.php';
+require_once BASE_PATH . '/src/setup/config.php';
 
 $container = new Container();
 $router = $container->get(Router::class);
 
-require_once __DIR__ . '/src/setup/routes.php';
+require_once BASE_PATH . '/src/setup/routes.php';
 
 $container->get(Bootstrap::class);
 ```
 
-This file executes top to bottom:
+This file lives in `public/` and executes top to bottom:
 
-1. **BASE_PATH** — Defines a constant pointing to the project root. Every other file uses this instead of `__DIR__` chains, so paths are always relative to the project root.
+1. **BASE_PATH** — `dirname(__DIR__)` resolves to the project root (one level above `public/`). Every other file uses this constant, so paths are always relative to the project root.
 2. **Autoloader** — Loads Composer's autoloader so all `Clara\*` classes and vendor packages resolve automatically.
 3. **Config** — Loads `config.php`, defining `APP_NAME` and the `DB_CONFIG` array.
 4. **Container** — Creates the PHP‑DI container (the dependency injection engine).
