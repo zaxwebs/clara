@@ -10,11 +10,8 @@ class Home extends Controller
 {
     public function index(): void
     {
-        $this->view('home.index');
-    }
-
-    public function test(): void
-    {
-        $this->response->back();
+        $this->view('home.index', [
+            'message' => 'Hello World',
+        ]);
     }
 }

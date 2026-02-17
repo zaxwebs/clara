@@ -1,3 +1,3 @@
 <?php
 
-echo 'Home@Index<br/>';
+echo $message;
