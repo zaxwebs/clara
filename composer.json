@@ -1,20 +1,21 @@
 {
-	"name": "zax/clara",
-	"description": "An OOP MVC PHP7 framework.",
-	"type": "framework",
-	"authors": [
-		{
-			"name": "zaxwebs",
-			"email": "zifidigital@gmail.com"
-		}
-	],
-	"require": {
-		"kint-php/kint": "^3.3",
-		"php-di/php-di": "^6.0"
-	},
-	"autoload": {
-		"psr-4": {
-			"Clara\\": "src/"
-		}
-	}
+  "name": "zax/clara",
+  "description": "An OOP MVC PHP framework for modern PHP 8.",
+  "type": "framework",
+  "authors": [
+    {
+      "name": "zaxwebs",
+      "email": "zifidigital@gmail.com"
+    }
+  ],
+  "require": {
+    "php": "^8.3",
+    "kint-php/kint": "^3.3",
+    "php-di/php-di": "^6.0"
+  },
+  "autoload": {
+    "psr-4": {
+      "Clara\\": "src/"
+    }
+  }
 }

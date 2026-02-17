@@ -1,18 +1,20 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Clara\app\controllers;
 
 use Clara\core\Controller;
 
 class Home extends Controller
 {
-  function index()
-  {
-    $this->view('home.index');
-  }
+    public function index(): void
+    {
+        $this->view('home.index');
+    }
 
-  function test()
-  {
-    $this->response->back();
-  }
+    public function test(): void
+    {
+        $this->response->back();
+    }
 }
