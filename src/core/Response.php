@@ -1,86 +1,81 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Clara\core;
 
 class Response
 {
-  protected $version = '1.1';
-  protected $status = 200;
-  protected $headers = [];
+    private string $version = '1.1';
+    private int $status = 200;
 
-  public function getVersion()
-  {
-    return $this->version;
-  }
+    /** @var array<string, string> */
+    private array $headers = [];
 
-  public function setVersion(string $version)
-  {
-    $this->version = $version;
-  }
-
-  public function setStatus(int $status)
-  {
-    $this->status = $status;
-  }
-
-  public function setHeader(string $label, string $value)
-  {
-    $this->headers[$label] = $value;
-  }
-
-  // sends status header
-  protected function sendStatus()
-  {
-    header("HTTP/{$this->version} {$this->status}", true, $this->status);
-  }
-
-  protected function sendHeaders()
-  {
-    foreach ($this->headers as $label => $value) {
-      header("{$label}: {$value}", false);
+    public function getVersion(): string
+    {
+        return $this->version;
     }
-  }
 
-  // sends status as well as other headers
-  public function send()
-  {
-    $this->sendStatus();
-    $this->sendHeaders();
-  }
-
-  // send headers first and render view
-  public function view(string $view, array $data = [])
-  {
-    // send headers
-    $this->send();
-    // render view
-    extract($data);
-    require_once __DIR__ . '/../app/views/' . $view . '.php';
-  }
-
-  // sends redirection header to redirect
-  public function redirect(string $uri)
-  {
-    $this->setStatus(302);
-    $this->setHeader('location', $uri);
-    // send headers
-    $this->send();
-    exit;
-  }
-
-  // redirects the user back to previous page
-  public function back()
-  {
-    if (isset($_SERVER['HTTP_REFERER'])) {
-      $this->redirect($_SERVER['HTTP_REFERER']);
-    } else {
-      $this->setStatus(302);
-      $this->setHeader('location', 'javascript://history.go(-1)');
-      // send headers
-      $this->send();
-      // you can render a view here instead as well.
-      echo 'It seems like Javascript is disabled on your browser. You can proceed to previous page manually...<br/>';
-      exit;
+    public function setVersion(string $version): void
+    {
+        $this->version = $version;
     }
-  }
+
+    public function setStatus(int $status): void
+    {
+        $this->status = $status;
+    }
+
+    public function setHeader(string $label, string $value): void
+    {
+        $this->headers[$label] = $value;
+    }
+
+    private function sendStatus(): void
+    {
+        header("HTTP/{$this->version} {$this->status}", true, $this->status);
+    }
+
+    private function sendHeaders(): void
+    {
+        foreach ($this->headers as $label => $value) {
+            header("{$label}: {$value}", false);
+        }
+    }
+
+    public function send(): void
+    {
+        $this->sendStatus();
+        $this->sendHeaders();
+    }
+
+    public function view(string $view, array $data = []): void
+    {
+        $this->send();
+        extract($data, EXTR_SKIP);
+        require __DIR__ . '/../app/views/' . $view . '.php';
+    }
+
+    public function redirect(string $uri): never
+    {
+        $this->setStatus(302);
+        $this->setHeader('Location', $uri);
+        $this->send();
+        exit;
+    }
+
+    public function back(): never
+    {
+        if (isset($_SERVER['HTTP_REFERER'])) {
+            $this->redirect((string) $_SERVER['HTTP_REFERER']);
+        }
+
+        $this->setStatus(302);
+        $this->setHeader('Location', 'javascript://history.go(-1)');
+        $this->send();
+
+        echo 'It seems like Javascript is disabled on your browser. You can proceed to previous page manually...<br/>';
+        exit;
+    }
 }

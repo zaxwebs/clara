@@ -1,17 +1,17 @@
 <?php
 
-// import auto-loader
-require_once './vendor/autoload.php';
-// import config
-require_once  './src/setup/config.php';
+declare(strict_types=1);
 
-// set up dependency injector container
-// dependency injector relies on reflection api built within PHP to figure out the dependencies of various classes
-$container = new \DI\Container();
+use Clara\core\Bootstrap;
+use Clara\core\Router;
+use DI\Container;
 
-// initialize router as we want to offer setting up routes via /src/setup/routes.php
-$router = $container->get('Clara\core\Router');
-require_once  './src/setup/routes.php';
+require_once __DIR__ . '/vendor/autoload.php';
+require_once __DIR__ . '/src/setup/config.php';
 
-// initialize with our front controller, this (majorly) decouples the framework from the container, see Router for full decoupling.
-$container->get('Clara\core\Bootstrap');
+$container = new Container();
+$router = $container->get(Router::class);
+
+require_once __DIR__ . '/src/setup/routes.php';
+
+$container->get(Bootstrap::class);
