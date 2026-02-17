@@ -6,11 +6,13 @@ abstract class Controller
 {
   protected $request;
   protected $response;
+  protected $db;
 
-  public function __construct(Request $request, Response $response, DB $db)
+  public function __construct(Request $request, Response $response, ?DB $db = NULL)
   {
     $this->request = $request;
     $this->response = $response;
+    $this->db = $db;
   }
 
   protected function view(string $view, array $data = [])
@@ -28,23 +30,23 @@ abstract class Controller
     $this->response->setHeader($label, $value);
   }
 
-  protected function get(string $key, string  $default = NULL)
+  protected function get(string $key, ?string $default = NULL)
   {
-    $this->request->get($key, $default);
+    return $this->request->get($key, $default);
   }
 
-  protected function post(string $key, string  $default = NULL)
+  protected function post(string $key, ?string $default = NULL)
   {
-    $this->request->post($key, $default);
+    return $this->request->post($key, $default);
   }
 
-  protected function session(string $key, string  $default = NULL)
+  protected function session(string $key, ?string $default = NULL)
   {
-    $this->request->session($key, $default);
+    return $this->request->session($key, $default);
   }
 
-  protected function cookie(string $key, string  $default = NULL)
+  protected function cookie(string $key, ?string $default = NULL)
   {
-    $this->request->cookie($key, $default);
+    return $this->request->cookie($key, $default);
   }
 }
