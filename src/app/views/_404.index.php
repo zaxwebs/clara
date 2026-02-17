@@ -1,3 +1,3 @@
 <?php
 
-echo "404@index<br/>";
+echo "404";
