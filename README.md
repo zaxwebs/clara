@@ -108,6 +108,7 @@ composer install
       Response.php         ← Sends HTTP responses and renders views
       Controller.php       ← Base class all controllers extend
       DB.php               ← PDO database wrapper
+      Route.php            ← Static facade for route registration
     /app
       /controllers         ← Your controllers (Home, Todos, _404)
       /models              ← Your models (Todo)
@@ -213,6 +214,7 @@ require_once BASE_PATH . '/src/setup/config.php';
 
 $container = new Container();
 $router = $container->get(Router::class);
+Route::setRouter($router);
 
 require_once BASE_PATH . '/src/setup/routes.php';
 
@@ -225,9 +227,10 @@ This file lives in `public/` and executes top to bottom:
 2. **Autoloader** — Loads Composer's autoloader so all `Clara\*` classes and vendor packages resolve automatically.
 3. **Config** — Loads `config.php`, defining `APP_NAME` and the `DB_CONFIG` array.
 4. **Container** — Creates the PHP‑DI container (the dependency injection engine).
-5. **Router** — Asks the container for a `Router` instance. PHP‑DI autowires its dependencies. The freshly created `$router` is now available as a local variable.
-6. **Routes** — Loads `routes.php`, which calls `$router->get(...)` and `$router->post(...)` to register route definitions.
-7. **Bootstrap** — Asks the container for a `Bootstrap` instance, which triggers `$this->router->dispatch()` inside its constructor. The application is now running.
+5. **Router** — Asks the container for a `Router` instance. PHP‑DI autowires its dependencies.
+6. **Route facade** — `Route::setRouter($router)` gives the static `Route` class access to the router instance, enabling the `Route::get()` / `Route::post()` syntax used in `routes.php`.
+7. **Routes** — Loads `routes.php`, which calls `Route::get(...)` and `Route::post(...)` to register route definitions.
+8. **Bootstrap** — Asks the container for a `Bootstrap` instance, which triggers `$this->router->dispatch()` inside its constructor. The application is now running.
 
 ---
 
@@ -262,23 +265,27 @@ The `driver` key lets the `DB` class handle driver-specific setup (e.g. creating
 ### Step 4 · Registering Routes (`src/setup/routes.php`)
 
 ```php
-$router->get('/', 'Home@index');
+use Clara\core\Route;
 
-$router->get('/todos', 'Todos@index');
-$router->post('/todos', 'Todos@store');
-$router->post('/todos/toggle', 'Todos@toggle');
-$router->post('/todos/delete', 'Todos@delete');
+Route::get('/', 'Home@index');
+
+Route::get('/todos', 'Todos@index');
+Route::post('/todos', 'Todos@store');
+Route::post('/todos/toggle', 'Todos@toggle');
+Route::post('/todos/delete', 'Todos@delete');
 ```
 
-Each line registers a route on the `$router` instance. The format is:
+Routes are registered using the static `Route` facade. The format is:
 
 ```
-$router->{method}(path, 'ControllerName@actionMethod');
+Route::{method}(path, 'ControllerName@actionMethod');
 ```
 
 * **method** — `get` or `post` (matches the HTTP method).
 * **path** — The URL path to match (e.g. `/todos`).
 * **handler** — A string in `Controller@action` format. `Home@index` means: call the `index()` method on the `Home` controller.
+
+`Route` is a thin static facade over the `Router` instance. Each call like `Route::get(...)` delegates to `$router->get(...)` internally. The `Route` class was initialized with the `Router` instance via `Route::setRouter($router)` in `index.php`.
 
 Routes are stored in a simple array inside the `Router`. They are not executed here — just registered for later matching.
 
