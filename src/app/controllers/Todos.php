@@ -6,15 +6,25 @@ namespace Clara\app\controllers;
 
 use Clara\app\models\Todo;
 use Clara\core\Controller;
+use Clara\core\DB;
+use Clara\core\Request;
+use Clara\core\Response;
 
 class Todos extends Controller
 {
+    public function __construct(
+        Request $request,
+        Response $response,
+        ?DB $db,
+        private readonly Todo $todo,
+    ) {
+        parent::__construct($request, $response, $db);
+    }
+
     public function index(): void
     {
-        $todo = new Todo();
-
         $this->view('todos.index', [
-            'todos' => $todo->all(),
+            'todos' => $this->todo->all(),
         ]);
     }
 
@@ -23,8 +33,7 @@ class Todos extends Controller
         $title = trim((string) $this->post('title'));
 
         if ($title !== '') {
-            $todo = new Todo();
-            $todo->create($title);
+            $this->todo->create($title);
         }
 
         $this->response->redirect('/todos');
@@ -35,8 +44,7 @@ class Todos extends Controller
         $id = (int) $this->post('id');
 
         if ($id > 0) {
-            $todo = new Todo();
-            $todo->toggleComplete($id);
+            $this->todo->toggleComplete($id);
         }
 
         $this->response->redirect('/todos');
@@ -47,8 +55,7 @@ class Todos extends Controller
         $id = (int) $this->post('id');
 
         if ($id > 0) {
-            $todo = new Todo();
-            $todo->delete($id);
+            $this->todo->delete($id);
         }
 
         $this->response->redirect('/todos');

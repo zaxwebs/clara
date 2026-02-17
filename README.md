@@ -88,10 +88,10 @@ composer install
   .htaccess              ← Rewrites all URLs to index.php
   index.php              ← Entry point: boots the framework
   composer.json          ← Dependency declarations and PSR‑4 autoload map
-  /ephermal              ← Runtime data (e.g. SQLite database)
+  /ephermal              ← Runtime data (e.g. SQLite database, not committed)
   /src
     /setup
-      config.php         ← App name and database credentials
+      config.php         ← App name and database config (DB_CONFIG)
       routes.php         ← All route definitions
     /core
       Bootstrap.php      ← Kicks off routing
@@ -104,7 +104,7 @@ composer install
       /controllers       ← Your controllers (Home, Todos, _404)
       /models            ← Your models (Todo)
       /views             ← PHP view templates
-  /vendor                ← Composer‑managed packages
+  /vendor                ← Composer‑managed packages (not committed)
 ```
 
 ---
@@ -130,10 +130,13 @@ PHP‑DI reads `Router`'s constructor, sees it requires `Request`, `Response`, a
 
 The same thing happens when `Bootstrap` is created: the container sees it needs `Router` and `Response`, and injects the same instances it already built. This means every class gets exactly the collaborators it needs without a single manual `new` call for core services.
 
+Autowiring extends to the application layer too. The `Todos` controller declares `Todo` as a constructor dependency. PHP‑DI sees `Todo` requires `DB`, resolves `DB` first, then injects it into `Todo`, then injects `Todo` into `Todos`. The entire dependency chain is resolved automatically.
+
 **Where to see it:**
 
 * `index.php` — `$container->get(Router::class)` and `$container->get(Bootstrap::class)`
 * `Router::dispatch()` — `$this->container->get($controller)` to instantiate controllers
+* `Todos` controller — `Todo` model injected via constructor, which itself receives `DB`
 
 ---
 
@@ -193,6 +196,8 @@ For example, a request to `/todos` does not look for a file called `todos`. Apac
 ### Step 2 · Entry Point (`index.php`)
 
 ```php
+define('BASE_PATH', __DIR__);
+
 require_once __DIR__ . '/vendor/autoload.php';
 require_once __DIR__ . '/src/setup/config.php';
 
@@ -206,12 +211,13 @@ $container->get(Bootstrap::class);
 
 This file executes top to bottom:
 
-1. **Autoloader** — Loads Composer's autoloader so all `Clara\*` classes and vendor packages resolve automatically.
-2. **Config** — Loads `config.php`, defining constants like `APP_NAME`, `DB_HOST`, `DB_NAME`, etc.
-3. **Container** — Creates the PHP‑DI container (the dependency injection engine).
-4. **Router** — Asks the container for a `Router` instance. PHP‑DI autowires its dependencies. The freshly created `$router` is now available as a local variable.
-5. **Routes** — Loads `routes.php`, which calls `$router->get(...)` and `$router->post(...)` to register route definitions.
-6. **Bootstrap** — Asks the container for a `Bootstrap` instance, which triggers `$this->router->dispatch()` inside its constructor. The application is now running.
+1. **BASE_PATH** — Defines a constant pointing to the project root. Every other file uses this instead of `__DIR__` chains, so paths are always relative to the project root.
+2. **Autoloader** — Loads Composer's autoloader so all `Clara\*` classes and vendor packages resolve automatically.
+3. **Config** — Loads `config.php`, defining `APP_NAME` and the `DB_CONFIG` array.
+4. **Container** — Creates the PHP‑DI container (the dependency injection engine).
+5. **Router** — Asks the container for a `Router` instance. PHP‑DI autowires its dependencies. The freshly created `$router` is now available as a local variable.
+6. **Routes** — Loads `routes.php`, which calls `$router->get(...)` and `$router->post(...)` to register route definitions.
+7. **Bootstrap** — Asks the container for a `Bootstrap` instance, which triggers `$this->router->dispatch()` inside its constructor. The application is now running.
 
 ---
 
@@ -220,14 +226,26 @@ This file executes top to bottom:
 ```php
 const APP_NAME = 'Clara';
 
-const DB_HOST = 'localhost';
-const DB_NAME = 'clara';
-const DB_CHAR = 'utf8mb4';
-const DB_USER = 'root';
-const DB_PASS = '';
+const DB_CONFIG = [
+    'driver'   => 'sqlite',
+    'dsn'      => 'sqlite:' . BASE_PATH . '/ephermal/db.sqlite',
+    'username' => null,
+    'password' => null,
+];
 ```
 
-Simple PHP constants. They are globally available once this file is loaded. `DB.php` references these constants to build its PDO connection string.
+Configuration is defined as PHP constants. `DB_CONFIG` is a driver-agnostic array — the `dsn` string is what PDO expects, so switching databases only means changing this array. For MySQL, it would look like:
+
+```php
+const DB_CONFIG = [
+    'driver'   => 'mysql',
+    'dsn'      => 'mysql:host=localhost;dbname=clara;charset=utf8mb4',
+    'username' => 'root',
+    'password' => '',
+];
+```
+
+The `driver` key lets the `DB` class handle driver-specific setup (e.g. creating the directory for SQLite files). The path uses `BASE_PATH` instead of a hardcoded `__DIR__` chain.
 
 ---
 
@@ -397,9 +415,9 @@ $this->response->view('home.index', ['message' => 'Hello World']);
 
 1. Calls `send()` to flush status and headers.
 2. Calls `extract($data, EXTR_SKIP)` to turn the `$data` array into local variables. The key `'message'` becomes a `$message` variable.
-3. Uses `require` to load the view file at `src/app/views/home.index.php`. Because `extract` ran first, `$message` is available inside that template.
+3. Uses `require` to load the view file at `BASE_PATH . '/src/app/views/home.index.php'`. Because `extract` ran first, `$message` is available inside that template.
 
-The dot in the view name (`home.index`) maps directly to a filename: `home.index.php`.
+The dot in the view name (`home.index`) maps directly to a filename: `home.index.php`. The path is resolved via `BASE_PATH` instead of relative `__DIR__` chains.
 
 **Redirecting:**
 
@@ -436,31 +454,38 @@ class Home extends Controller
 
 ### Step 11 · Writing a Model (`src/app/models/Todo.php`)
 
-Models handle data access. The `Todo` model connects to an SQLite database and provides CRUD methods:
+Models handle data access. They receive the `DB` instance via constructor injection — no manual connection setup:
 
 ```php
 class Todo
 {
-    private PDO $pdo;
-
-    public function __construct()
+    public function __construct(private readonly DB $db)
     {
-        $this->pdo = new PDO('sqlite:' . __DIR__ . '/../../../ephermal/db.sqlite');
-        $this->migrate(); // Auto-creates the todos table if missing
+        $this->migrate();
     }
 
-    public function all(): array { /* SELECT * FROM todos */ }
-    public function create(string $title): void { /* INSERT */ }
-    public function toggleComplete(int $id): void { /* UPDATE */ }
-    public function delete(int $id): void { /* DELETE */ }
+    private function migrate(): void
+    {
+        $this->db->exec('CREATE TABLE IF NOT EXISTS todos (...)');
+    }
+
+    public function all(): array
+    {
+        return $this->db->run('SELECT * FROM todos ORDER BY created_at DESC')->fetchAll();
+    }
+
+    public function create(string $title): void
+    {
+        $this->db->run('INSERT INTO todos (title) VALUES (:title)', ['title' => $title]);
+    }
+
+    // toggleComplete() and delete() follow the same pattern
 }
 ```
 
-Models are plain classes. There is no base `Model` class — they connect to the database directly via PDO. The `Todo` model uses SQLite and auto-migrates on construction, creating the `todos` table if it does not exist.
+Models are plain classes. There is no base `Model` class. The `DB` dependency is injected by PHP‑DI, which reads the connection settings from `DB_CONFIG`. Models use `$this->db->run()` for all queries — the same `run()` helper that handles both simple queries and parameterized statements.
 
-The `ephermal/` directory sits outside `src/` to separate runtime data from source code. It is listed in `.gitignore` so the database file is never committed.
-
-> **Note:** Clara also provides a `DB` core class (`src/core/DB.php`) that wraps PDO with a `run()` helper for MySQL connections. Models can use either approach depending on needs.
+The `ephermal/` directory (used for SQLite storage) sits outside `src/` to separate runtime data from source code. It is listed in `.gitignore` so the database file is never committed. The `DB` class auto-creates this directory when the SQLite driver is configured.
 
 ---
 
@@ -507,10 +532,26 @@ The `Router` triggers this automatically in two cases:
 ```php
 class DB extends PDO
 {
-    public function __construct() { /* Reads DB_HOST, DB_NAME, etc. from config.php */ }
+    public function __construct()
+    {
+        $config = DB_CONFIG;
+
+        // Auto-create directory for SQLite files
+        if ($config['driver'] === 'sqlite') {
+            $dir = dirname(str_replace('sqlite:', '', $config['dsn']));
+            if (!is_dir($dir)) {
+                mkdir($dir, 0755, true);
+            }
+        }
+
+        parent::__construct($config['dsn'], $config['username'], $config['password'], $defaultOptions);
+    }
+
     public function run(string $sql, array $args = []): PDOStatement|false { ... }
 }
 ```
+
+`DB` reads its connection settings from the `DB_CONFIG` constant defined in `config.php`. It works with any PDO-supported driver — SQLite, MySQL, PostgreSQL — controlled entirely by the config. When the driver is `sqlite`, it automatically ensures the database directory exists.
 
 `DB` extends PHP's native `PDO` class, preconfigured with sensible defaults:
 
@@ -548,10 +589,10 @@ Bootstrap → $router->dispatch()
 Router → Request says method=GET, path=/todos
        → findRoute() matches: {method: GET, path: /todos, handler: 'Todos@index'}
        → resolveHandler('Todos@index') → [\Clara\app\controllers\Todos, 'index']
-       → $container->get(Todos::class) → autowires Request + Response into constructor
+       → $container->get(Todos::class) → autowires Request, Response, DB, and Todo
        → $invoked->index()
   ↓
-Todos::index() → Creates Todo model → $todo->all() fetches rows from SQLite
+Todos::index() → $this->todo->all() fetches rows via injected DB
               → $this->view('todos.index', ['todos' => $rows])
   ↓
 Response::view() → send() emits HTTP 200 + headers

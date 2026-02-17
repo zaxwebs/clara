@@ -54,7 +54,7 @@ class Response
     {
         $this->send();
         extract($data, EXTR_SKIP);
-        require __DIR__ . '/../app/views/' . $view . '.php';
+        require BASE_PATH . '/src/app/views/' . $view . '.php';
     }
 
     public function redirect(string $uri): never

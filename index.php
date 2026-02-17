@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+define('BASE_PATH', __DIR__);
+
 use Clara\core\Bootstrap;
 use Clara\core\Router;
 use DI\Container;
