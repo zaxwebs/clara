@@ -85,6 +85,16 @@ composer install
 
    This prevents direct HTTP access to source code, config files, and the database.
 
+### 4. Run Locally (PHP Built-in Server)
+
+For quick local testing (without Apache/Nginx), run:
+
+```bash
+php -S 127.0.0.1:8000 -t public
+```
+
+Then open `http://127.0.0.1:8000` in your browser.
+
 ---
 
 ## Project Structure
@@ -99,9 +109,8 @@ composer install
   /ephermal                ← Runtime data (e.g. SQLite database, not committed)
   /config
     app.php                ← Application + database configuration
+    routes.php             ← All route definitions
   /src
-    /setup
-      routes.php           ← All route definitions
     /core
       Bootstrap.php        ← Kicks off routing
       Router.php           ← Matches URLs to controller actions
