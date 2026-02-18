@@ -4,13 +4,17 @@ declare(strict_types=1);
 
 namespace Clara\app\controllers;
 
-use Clara\core\Controller;
+use Clara\core\Response;
 
-class _404 extends Controller
+class _404
 {
+    public function __construct(private readonly Response $response)
+    {
+    }
+
     public function index(): void
     {
-        $this->setStatus(404);
-        $this->view('_404.index');
+        $this->response->setStatus(404);
+        $this->response->view('_404.index');
     }
 }

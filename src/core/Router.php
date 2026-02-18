@@ -4,21 +4,10 @@ declare(strict_types=1);
 
 namespace Clara\core;
 
-use DI\Container;
-
 final class Router
 {
-    private const NOT_FOUND_HANDLER = '_404@index';
-
     /** @var array<int, array{method: string, path: string, handler: string}> */
     private array $routes = [];
-
-    public function __construct(
-        private readonly Request $request,
-        private readonly Response $response,
-        private readonly Container $container,
-    ) {
-    }
 
     public function add(string $method, string $path, string $handler): void
     {
@@ -39,34 +28,15 @@ final class Router
         $this->add('POST', $path, $handler);
     }
 
-    public function dispatch(): void
+    public function dispatch(string $method, string $uri): ?string
     {
-        $method = $this->request->method() === 'HEAD' ? 'GET' : $this->request->method();
-        $path = $this->normalizePath($this->request->path());
-        $match = $this->findRoute($method, $path);
-        if ($match === null) {
-            $this->response->setStatus(404);
-        }
+        $normalizedMethod = strtoupper($method) === 'HEAD' ? 'GET' : strtoupper($method);
+        $path = parse_url($uri, PHP_URL_PATH);
+        $normalizedPath = $this->normalizePath(is_string($path) ? $path : '/');
 
-        [$controller, $action] = $this->resolveHandler($match['handler'] ?? self::NOT_FOUND_HANDLER);
-
-        $invoked = $this->container->get($controller);
-
-        if (!method_exists($invoked, $action)) {
-            [$controller, $action] = $this->resolveHandler(self::NOT_FOUND_HANDLER);
-            $invoked = $this->container->get($controller);
-            $this->response->setStatus(404);
-        }
-
-        $invoked->{$action}();
-    }
-
-    /** @return array{method: string, path: string, handler: string}|null */
-    private function findRoute(string $method, string $path): ?array
-    {
         foreach ($this->routes as $route) {
-            if ($route['method'] === $method && $route['path'] === $path) {
-                return $route;
+            if ($route['method'] === $normalizedMethod && $route['path'] === $normalizedPath) {
+                return $route['handler'];
             }
         }
 
@@ -80,17 +50,5 @@ final class Router
         }
 
         return $path === '/' ? $path : rtrim($path, '/');
-    }
-
-    /** @return array{0: string, 1: string} */
-    private function resolveHandler(string $handler): array
-    {
-        [$controller, $action] = array_pad(explode('@', $handler, 2), 2, null);
-
-        if ($controller === null || $controller === '' || $action === null || $action === '') {
-            return ['\\Clara\\app\\controllers\\_404', 'index'];
-        }
-
-        return ['\\Clara\\app\\controllers\\' . $controller, $action];
     }
 }

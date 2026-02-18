@@ -4,13 +4,17 @@ declare(strict_types=1);
 
 namespace Clara\app\controllers;
 
-use Clara\core\Controller;
+use Clara\core\Response;
 
-class Home extends Controller
+class Home
 {
+    public function __construct(private readonly Response $response)
+    {
+    }
+
     public function index(): void
     {
-        $this->view('home.index', [
+        $this->response->view('home.index', [
             'message' => 'Hello World',
         ]);
     }
