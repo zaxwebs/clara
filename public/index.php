@@ -39,6 +39,6 @@ $container = $builder->build();
 $router = $container->get(Router::class);
 Route::setRouter($router);
 
-require_once BASE_PATH . '/src/setup/routes.php';
+require_once BASE_PATH . '/config/routes.php';
 
 $container->get(Bootstrap::class);
