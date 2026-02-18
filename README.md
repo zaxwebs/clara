@@ -140,13 +140,13 @@ $router = $container->get(Router::class);
 
 PHP‑DI reads `Router`'s constructor, sees it requires `Request`, `Response`, and `Container`, creates those first, then injects them into the `Router`. This is called **autowiring** — the container resolves the entire dependency tree for you.
 
-The same thing happens when `Bootstrap` is created: the container sees it needs `Router` and `Response`, and injects the same instances it already built. This means every class gets exactly the collaborators it needs without a single manual `new` call for core services.
+The same pattern is used by `Application`: it asks the container for `Router` and other dependencies, then coordinates the request lifecycle from one clear place. This means every class gets exactly the collaborators it needs without a single manual `new` call for core services.
 
 Autowiring extends to the application layer too. The `Todos` controller declares `Todo` as a constructor dependency. PHP‑DI sees `Todo` requires `DB`, resolves `DB` first, then injects it into `Todo`, then injects `Todo` into `Todos`. The entire dependency chain is resolved automatically.
 
 **Where to see it:**
 
-* `index.php` — `$container->get(Router::class)` and `$container->get(Bootstrap::class)`
+* `bootstrap/app.php` + `Application` — container creation and route registration
 * `Router::dispatch()` — `$this->container->get($controller)` to instantiate controllers
 * `Todos` controller — `Todo` model injected via constructor, which itself receives `DB`
 
@@ -212,38 +212,16 @@ define('BASE_PATH', dirname(__DIR__));
 
 require_once BASE_PATH . '/vendor/autoload.php';
 
-$config = require BASE_PATH . '/config/app.php';
-$dbConfig = $config['database'];
-
-$builder = new ContainerBuilder();
-$builder->addDefinitions([
-    DB::class => create(DB::class)->constructor(
-        $dbConfig['dsn'],
-        $dbConfig['username'],
-        $dbConfig['password'],
-        $dbConfig['options'],
-    ),
-]);
-
-$container = $builder->build();
-$router = $container->get(Router::class);
-Route::setRouter($router);
-
-require_once BASE_PATH . '/src/setup/routes.php';
-
-$container->get(Bootstrap::class);
+$app = require BASE_PATH . '/bootstrap/app.php';
+$app->run();
 ```
 
 This file lives in `public/` and executes top to bottom:
 
 1. **BASE_PATH** — `dirname(__DIR__)` resolves to the project root (one level above `public/`). Every other file uses this constant, so paths are always relative to the project root.
 2. **Autoloader** — Loads Composer's autoloader so all `Clara\*` classes and vendor packages resolve automatically.
-3. **Config** — Loads `config/app.php`, which returns the application and database arrays.
-4. **Container** — Creates the PHP‑DI container (the dependency injection engine).
-5. **Router** — Asks the container for a `Router` instance. PHP‑DI autowires its dependencies.
-6. **Route facade** — `Route::setRouter($router)` gives the static `Route` class access to the router instance, enabling the `Route::get()` / `Route::post()` syntax used in `routes.php`.
-7. **Routes** — Loads `routes.php`, which calls `Route::get(...)` and `Route::post(...)` to register route definitions.
-8. **Bootstrap** — Asks the container for a `Bootstrap` instance, which triggers `$this->router->dispatch()` inside its constructor. The application is now running.
+3. **Application bootstrap** — Loads `bootstrap/app.php`, which boots the container, registers the router in the `Route` facade, and loads route definitions.
+4. **Run** — `$app->run()` dispatches the current request through the router.
 
 ---
 
@@ -284,50 +262,49 @@ SQLite setup can be handled at bootstrap time by checking whether the DSN starts
 
 ---
 
-### Step 4 · Registering Routes (`src/setup/routes.php`)
+### Step 4 · Registering Routes (`config/routes.php`)
 
 ```php
 use Clara\core\Route;
 
-Route::get('/', 'Home@index');
+use Clara\app\controllers\Home;
+use Clara\app\controllers\Todos;
 
-Route::get('/todos', 'Todos@index');
-Route::post('/todos', 'Todos@store');
-Route::post('/todos/toggle', 'Todos@toggle');
-Route::post('/todos/delete', 'Todos@delete');
+Route::get('/', [Home::class, 'index']);
+
+Route::get('/todos', [Todos::class, 'index']);
+Route::post('/todos', [Todos::class, 'store']);
+Route::post('/todos/toggle', [Todos::class, 'toggle']);
+Route::post('/todos/delete', [Todos::class, 'delete']);
 ```
 
 Routes are registered using the static `Route` facade. The format is:
 
 ```
-Route::{method}(path, 'ControllerName@actionMethod');
+Route::{method}(path, [ControllerClass::class, 'actionMethod']);
 ```
 
 * **method** — `get` or `post` (matches the HTTP method).
 * **path** — The URL path to match (e.g. `/todos`).
-* **handler** — A string in `Controller@action` format. `Home@index` means: call the `index()` method on the `Home` controller.
+* **handler** — A class-method pair, e.g. `[Home::class, 'index']`, which points to a concrete controller action.
 
-`Route` is a thin static facade over the `Router` instance. Each call like `Route::get(...)` delegates to `$router->get(...)` internally. The `Route` class was initialized with the `Router` instance via `Route::setRouter($router)` in `index.php`.
+`Route` is a thin static facade over the `Router` instance. Each call like `Route::get(...)` delegates to `$router->get(...)` internally. The `Route` class is initialized with the `Router` instance inside `Application` during bootstrap.
 
 Routes are stored in a simple array inside the `Router`. They are not executed here — just registered for later matching.
 
 ---
 
-### Step 5 · Bootstrapping (`src/core/Bootstrap.php`)
+### Step 5 · Application Bootstrap (`src/core/Application.php`)
 
-```php
-final class Bootstrap
-{
-    public function __construct(
-        private readonly Router $router,
-        private readonly Response $response,
-    ) {
-        $this->router->dispatch();
-    }
-}
-```
+`Application` centralizes bootstrapping in a Laravel-like way while staying lean:
 
-`Bootstrap` is tiny by design. Its only job is to trigger `$this->router->dispatch()`. Because PHP‑DI creates `Bootstrap` via `$container->get(Bootstrap::class)`, the `Router` and `Response` dependencies are automatically injected — the same instances that were created earlier. The constructor fires `dispatch()` immediately, kicking off route resolution.
+* Build the dependency container
+* Register `DB` bindings
+* Create `Router` and hand it to the `Route` facade
+* Load `config/routes.php`
+* Run `dispatch()` through `$app->run()`
+
+This keeps `public/index.php` minimal and easy to reason about.
 
 ---
 
@@ -358,12 +335,11 @@ $match = $this->findRoute($method, $path);
 [$controller, $action] = $this->resolveHandler($match['handler'] ?? self::NOT_FOUND_HANDLER);
 ```
 
-`resolveHandler()` splits the handler string (e.g. `'Todos@index'`) by the `@` symbol:
+`resolveHandler()` normalizes handlers into `[ControllerClass, 'method']` format.
 
-* `'Todos'` → fully qualified class `\Clara\app\controllers\Todos`
-* `'index'` → the method to call
-
-If no route matched, the fallback `_404@index` is used instead.
+* It accepts explicit class-method arrays (Laravel-style route handlers)
+* It still supports legacy `'Controller@method'` strings for compatibility
+* If no route matched, the fallback `_404@index` is used instead.
 
 #### 6d. Instantiate the Controller
 
@@ -616,8 +592,8 @@ index.php → Load autoloader, config, create Container, create Router, load rou
 Bootstrap → $router->dispatch()
   ↓
 Router → Request says method=GET, path=/todos
-       → findRoute() matches: {method: GET, path: /todos, handler: 'Todos@index'}
-       → resolveHandler('Todos@index') → [\Clara\app\controllers\Todos, 'index']
+       → findRoute() matches: {method: GET, path: /todos, handler: [Todos::class, 'index']}
+       → resolveHandler(...) keeps the class/method pair
        → $container->get(Todos::class) → autowires Request, Response, DB, and Todo
        → $invoked->index()
   ↓
@@ -635,7 +611,7 @@ View → Renders HTML using $todos → sent to browser
 
 ## Usage
 
-* Configuration files: `src/setup/`
+* Configuration files: `config/`
 * Core framework files: `src/core/`
 * Controllers: `src/app/controllers/`
 * Models: `src/app/models/`
