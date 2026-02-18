@@ -102,6 +102,8 @@ Then open `http://127.0.0.1:8000` in your browser.
 ```
 /clara
   composer.json            ← Dependency declarations and PSR‑4 autoload map
+  /bootstrap
+    app.php                ← Boots the Application (container, routes, facade)
   /public                  ← Web server document root
     .htaccess              ← Rewrites all URLs to index.php
     index.php              ← Entry point: boots the framework
@@ -112,6 +114,7 @@ Then open `http://127.0.0.1:8000` in your browser.
     routes.php             ← All route definitions
   /src
     /core
+      Application.php      ← Centralizes bootstrapping (container, DB, router)
       Bootstrap.php        ← Kicks off routing
       Router.php           ← Matches URLs to controller actions
       Request.php          ← Reads incoming HTTP data
@@ -123,6 +126,7 @@ Then open `http://127.0.0.1:8000` in your browser.
       /controllers         ← Your controllers (Home, Todos, _404)
       /models              ← Your models (Todo)
       /views               ← PHP view templates
+  /tests                   ← Test suite (not committed)
   /vendor                  ← Composer‑managed packages (not committed)
 ```
 
@@ -303,15 +307,55 @@ Routes are stored in a simple array inside the `Router`. They are not executed h
 
 ---
 
-### Step 5 · Application Bootstrap (`src/core/Application.php`)
+### Step 5 · Application Bootstrap (`bootstrap/app.php` + `src/core/Application.php`)
 
-`Application` centralizes bootstrapping in a Laravel-like way while staying lean:
+`bootstrap/app.php` is the glue between the entry point and the framework:
 
-* Build the dependency container
-* Register `DB` bindings
-* Create `Router` and hand it to the `Route` facade
-* Load `config/routes.php`
-* Run `dispatch()` through `$app->run()`
+```php
+return Application::boot(BASE_PATH)
+    ->withRoutes(BASE_PATH . '/config/routes.php');
+```
+
+It returns a fully configured `Application` instance back to `index.php`, which then calls `$app->run()`.
+
+`Application` itself centralizes all bootstrapping in a Laravel-like way while staying lean:
+
+```php
+final class Application
+{
+    private function __construct(
+        private readonly string $basePath,
+        private readonly array $config,
+    ) {
+        // 1. Auto-create the SQLite directory if the DSN uses sqlite:
+        // 2. Build the DI container with DB bindings from config
+        // 3. Resolve Router from the container
+        // 4. Hand the Router to the Route facade
+    }
+
+    public static function boot(string $basePath): self
+    {
+        return new self($basePath, require $basePath . '/config/app.php');
+    }
+
+    public function withRoutes(string $routesPath): self
+    {
+        require $routesPath;   // Route::get(...) calls register into the Router
+        return $this;
+    }
+
+    public function run(): void
+    {
+        $this->router->dispatch();
+    }
+}
+```
+
+The lifecycle is:
+
+1. **`boot()`** — Loads `config/app.php`, creates the DI container with explicit `DB` bindings (DSN, username, password, options from config), resolves `Router`, and wires the `Route` facade.
+2. **`withRoutes()`** — Requires the routes file, which calls `Route::get(...)` / `Route::post(...)` to register routes into the `Router`.
+3. **`run()`** — Delegates to `$this->router->dispatch()` to handle the current request.
 
 This keeps `public/index.php` minimal and easy to reason about.
 
@@ -596,9 +640,16 @@ Browser → GET /todos
   ↓
 .htaccess → No file called "todos" exists → forward to index.php
   ↓
-index.php → Load autoloader, config, create Container, create Router, load routes
+index.php → Define BASE_PATH → load autoloader
+         → require bootstrap/app.php
   ↓
-Bootstrap → $router->dispatch()
+Application::boot() → Load config/app.php
+                    → Build DI container with DB bindings
+                    → Resolve Router, wire Route facade
+  ↓
+Application::withRoutes() → Require config/routes.php → routes registered
+  ↓
+Application::run() → $router->dispatch()
   ↓
 Router → Request says method=GET, path=/todos
        → findRoute() matches: {method: GET, path: /todos, handler: [Todos::class, 'index']}
