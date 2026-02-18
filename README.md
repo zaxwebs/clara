@@ -97,9 +97,10 @@ composer install
     index.php              ← Entry point: boots the framework
     favicon.ico
   /ephermal                ← Runtime data (e.g. SQLite database, not committed)
+  /config
+    app.php                ← Application + database configuration
   /src
     /setup
-      config.php           ← App name and database config (DB_CONFIG)
       routes.php           ← All route definitions
     /core
       Bootstrap.php        ← Kicks off routing
@@ -200,7 +201,7 @@ RewriteRule ^ index.php [QSA,L]
 
 The `.htaccess` file lives inside `public/`, which is the web server's document root. Apache's `mod_rewrite` intercepts every incoming request. If the URL does not point to an existing file or directory on disk within `public/`, it silently forwards the request to `public/index.php`. This is called the **front controller pattern** — one file handles all requests regardless of URL.
 
-Because only `public/` is exposed, requests like `/src/setup/config.php` never reach the filesystem — Apache looks inside `public/` for that path, finds nothing, and routes to `index.php` instead.
+Because only `public/` is exposed, requests like `/config/app.php` never reach the filesystem — Apache looks inside `public/` for that path, finds nothing, and routes to `index.php` instead.
 
 ---
 
@@ -210,9 +211,21 @@ Because only `public/` is exposed, requests like `/src/setup/config.php` never r
 define('BASE_PATH', dirname(__DIR__));
 
 require_once BASE_PATH . '/vendor/autoload.php';
-require_once BASE_PATH . '/src/setup/config.php';
 
-$container = new Container();
+$config = require BASE_PATH . '/config/app.php';
+$dbConfig = $config['database'];
+
+$builder = new ContainerBuilder();
+$builder->addDefinitions([
+    DB::class => create(DB::class)->constructor(
+        $dbConfig['dsn'],
+        $dbConfig['username'],
+        $dbConfig['password'],
+        $dbConfig['options'],
+    ),
+]);
+
+$container = $builder->build();
 $router = $container->get(Router::class);
 Route::setRouter($router);
 
@@ -225,7 +238,7 @@ This file lives in `public/` and executes top to bottom:
 
 1. **BASE_PATH** — `dirname(__DIR__)` resolves to the project root (one level above `public/`). Every other file uses this constant, so paths are always relative to the project root.
 2. **Autoloader** — Loads Composer's autoloader so all `Clara\*` classes and vendor packages resolve automatically.
-3. **Config** — Loads `config.php`, defining `APP_NAME` and the `DB_CONFIG` array.
+3. **Config** — Loads `config/app.php`, which returns the application and database arrays.
 4. **Container** — Creates the PHP‑DI container (the dependency injection engine).
 5. **Router** — Asks the container for a `Router` instance. PHP‑DI autowires its dependencies.
 6. **Route facade** — `Route::setRouter($router)` gives the static `Route` class access to the router instance, enabling the `Route::get()` / `Route::post()` syntax used in `routes.php`.
@@ -234,31 +247,40 @@ This file lives in `public/` and executes top to bottom:
 
 ---
 
-### Step 3 · Configuration (`src/setup/config.php`)
+### Step 3 · Configuration (`config/app.php`)
 
 ```php
-const APP_NAME = 'Clara';
-
-const DB_CONFIG = [
-    'driver'   => 'sqlite',
-    'dsn'      => 'sqlite:' . BASE_PATH . '/ephermal/db.sqlite',
-    'username' => null,
-    'password' => null,
+return [
+    'app' => [
+        'name' => 'Clara',
+    ],
+    'database' => [
+        'dsn' => 'sqlite:' . BASE_PATH . '/ephermal/db.sqlite',
+        'username' => null,
+        'password' => null,
+        'options' => [
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+            PDO::ATTR_EMULATE_PREPARES => false,
+        ],
+    ],
 ];
 ```
 
-Configuration is defined as PHP constants. `DB_CONFIG` is a driver-agnostic array — the `dsn` string is what PDO expects, so switching databases only means changing this array. For MySQL, it would look like:
+Configuration is defined as a returned PHP array, similar to Laravel-style config files. The `dsn` string is what PDO expects, so switching databases only means changing values in this file. For MySQL, it would look like:
 
 ```php
-const DB_CONFIG = [
-    'driver'   => 'mysql',
-    'dsn'      => 'mysql:host=localhost;dbname=clara;charset=utf8mb4',
-    'username' => 'root',
-    'password' => '',
+return [
+    'database' => [
+        'dsn' => 'mysql:host=localhost;dbname=clara;charset=utf8mb4',
+        'username' => 'root',
+        'password' => '',
+        'options' => [],
+    ],
 ];
 ```
 
-The `driver` key lets the `DB` class handle driver-specific setup (e.g. creating the directory for SQLite files). The path uses `BASE_PATH` instead of a hardcoded `__DIR__` chain.
+SQLite setup can be handled at bootstrap time by checking whether the DSN starts with `sqlite:` and creating the directory if needed. The path uses `BASE_PATH` instead of a hardcoded `__DIR__` chain.
 
 ---
 
@@ -500,9 +522,9 @@ class Todo
 }
 ```
 
-Models are plain classes. There is no base `Model` class. The `DB` dependency is injected by PHP‑DI, which reads the connection settings from `DB_CONFIG`. Models use `$this->db->run()` for all queries — the same `run()` helper that handles both simple queries and parameterized statements.
+Models are plain classes. There is no base `Model` class. The `DB` dependency is injected by PHP‑DI using values from `config/app.php`. Models use `$this->db->run()` for all queries — the same `run()` helper that handles both simple queries and parameterized statements.
 
-The `ephermal/` directory (used for SQLite storage) sits outside `src/` to separate runtime data from source code. It is listed in `.gitignore` so the database file is never committed. The `DB` class auto-creates this directory when the SQLite driver is configured.
+The `ephermal/` directory (used for SQLite storage) sits outside `src/` to separate runtime data from source code. It is listed in `.gitignore` so the database file is never committed. `public/index.php` can auto-create this directory when the DSN uses SQLite.
 
 ---
 
@@ -549,28 +571,18 @@ The `Router` triggers this automatically in two cases:
 ```php
 class DB extends PDO
 {
-    public function __construct()
+    public function __construct(string $dsn, ?string $username = null, ?string $password = null, array $options = [])
     {
-        $config = DB_CONFIG;
-
-        // Auto-create directory for SQLite files
-        if ($config['driver'] === 'sqlite') {
-            $dir = dirname(str_replace('sqlite:', '', $config['dsn']));
-            if (!is_dir($dir)) {
-                mkdir($dir, 0755, true);
-            }
-        }
-
-        parent::__construct($config['dsn'], $config['username'], $config['password'], $defaultOptions);
+        parent::__construct($dsn, $username, $password, $options);
     }
 
     public function run(string $sql, array $args = []): PDOStatement|false { ... }
 }
 ```
 
-`DB` reads its connection settings from the `DB_CONFIG` constant defined in `config.php`. It works with any PDO-supported driver — SQLite, MySQL, PostgreSQL — controlled entirely by the config. When the driver is `sqlite`, it automatically ensures the database directory exists.
+`DB` now receives PDO connection parameters directly in its constructor (`dsn`, `username`, `password`, `options`) and passes them to `PDO`. It works with any PDO-supported driver — SQLite, MySQL, PostgreSQL — controlled entirely by config values.
 
-`DB` extends PHP's native `PDO` class, preconfigured with sensible defaults:
+`DB` extends PHP's native `PDO` class and accepts whichever PDO options you provide in config. A common default set is:
 
 * **Exception mode** — Errors throw exceptions instead of silent failures.
 * **Associative fetch** — Query results return associative arrays by default.
