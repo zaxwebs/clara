@@ -8,9 +8,9 @@ use DI\Container;
 
 final class Router
 {
-    private const NOT_FOUND_HANDLER = '_404@index';
+    private const NOT_FOUND_HANDLER = ['\\Clara\\app\\controllers\\_404', 'index'];
 
-    /** @var array<int, array{method: string, path: string, handler: string}> */
+    /** @var array<int, array{method: string, path: string, handler: mixed}> */
     private array $routes = [];
 
     public function __construct(
@@ -20,7 +20,7 @@ final class Router
     ) {
     }
 
-    public function add(string $method, string $path, string $handler): void
+    public function add(string $method, string $path, mixed $handler): void
     {
         $this->routes[] = [
             'method' => strtoupper($method),
@@ -29,12 +29,12 @@ final class Router
         ];
     }
 
-    public function get(string $path, string $handler): void
+    public function get(string $path, mixed $handler): void
     {
         $this->add('GET', $path, $handler);
     }
 
-    public function post(string $path, string $handler): void
+    public function post(string $path, mixed $handler): void
     {
         $this->add('POST', $path, $handler);
     }
@@ -44,16 +44,16 @@ final class Router
         $method = $this->request->method() === 'HEAD' ? 'GET' : $this->request->method();
         $path = $this->normalizePath($this->request->path());
         $match = $this->findRoute($method, $path);
+
         if ($match === null) {
             $this->response->setStatus(404);
         }
 
         [$controller, $action] = $this->resolveHandler($match['handler'] ?? self::NOT_FOUND_HANDLER);
-
         $invoked = $this->container->get($controller);
 
         if (!method_exists($invoked, $action)) {
-            [$controller, $action] = $this->resolveHandler(self::NOT_FOUND_HANDLER);
+            [$controller, $action] = self::NOT_FOUND_HANDLER;
             $invoked = $this->container->get($controller);
             $this->response->setStatus(404);
         }
@@ -61,7 +61,7 @@ final class Router
         $invoked->{$action}();
     }
 
-    /** @return array{method: string, path: string, handler: string}|null */
+    /** @return array{method: string, path: string, handler: mixed}|null */
     private function findRoute(string $method, string $path): ?array
     {
         foreach ($this->routes as $route) {
@@ -83,14 +83,28 @@ final class Router
     }
 
     /** @return array{0: string, 1: string} */
-    private function resolveHandler(string $handler): array
+    private function resolveHandler(mixed $handler): array
     {
-        [$controller, $action] = array_pad(explode('@', $handler, 2), 2, null);
+        if (is_array($handler) && count($handler) === 2) {
+            [$controller, $action] = $handler;
 
-        if ($controller === null || $controller === '' || $action === null || $action === '') {
-            return ['\\Clara\\app\\controllers\\_404', 'index'];
+            if (is_string($controller) && is_string($action) && $controller !== '' && $action !== '') {
+                return [$controller, $action];
+            }
         }
 
-        return ['\\Clara\\app\\controllers\\' . $controller, $action];
+        if (is_string($handler)) {
+            [$controller, $action] = array_pad(explode('@', $handler, 2), 2, null);
+
+            if ($controller !== null && $controller !== '' && $action !== null && $action !== '') {
+                if (!str_contains($controller, '\\')) {
+                    $controller = '\\Clara\\app\\controllers\\' . $controller;
+                }
+
+                return [$controller, $action];
+            }
+        }
+
+        return self::NOT_FOUND_HANDLER;
     }
 }

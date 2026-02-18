@@ -15,17 +15,17 @@ final class Route
         self::$router = $router;
     }
 
-    public static function add(string $method, string $path, string $handler): void
+    public static function add(string $method, string $path, mixed $handler): void
     {
         self::router()->add($method, $path, $handler);
     }
 
-    public static function get(string $path, string $handler): void
+    public static function get(string $path, mixed $handler): void
     {
         self::router()->get($path, $handler);
     }
 
-    public static function post(string $path, string $handler): void
+    public static function post(string $path, mixed $handler): void
     {
         self::router()->post($path, $handler);
     }
